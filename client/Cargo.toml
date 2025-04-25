@@ -13,3 +13,6 @@ solana-program.workspace = true
 solana-sdk.workspace = true
 hex.workspace = true
 solana-transaction-status.workspace = true
+clap = {workspace = true, features = ["derive"]}
+solana-cli-config.workspace = true
+serde_json.workspace = true

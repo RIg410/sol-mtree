@@ -10,7 +10,9 @@ program-dependencies = []
 program-id = "5btvfbzMrGv3WB4h47NXpophMLKqGEEDwGDQgkr8PMF2"
 
 [features]
-default = ["encode"]
+default = ["encode", "decode-event"]
+
+decode-event = []
 encode = []
 no-entrypoint = []
 
