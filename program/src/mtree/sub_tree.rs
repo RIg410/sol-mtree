@@ -47,13 +47,13 @@ impl SubTree {
     }
 
     pub fn update_leaf(&mut self, index: usize, new: Hash) -> bool {
-        if index >= SUB_TREE_LEAFS - 1 && index < ELEMENTS_IN_SUB_TREE {
+        if (SUB_TREE_LEAFS - 1..ELEMENTS_IN_SUB_TREE).contains(&index) {
             self.nodes[index] = new;
             self.update_up(index);
             return true;
         }
 
-        return false;
+        false
     }
 
     pub fn insert_leaf(&mut self, leaf: Hash) -> bool {
@@ -66,7 +66,7 @@ impl SubTree {
         self.next_index += 1;
 
         self.update_up(index);
-        return true;
+        true
     }
 
     fn update_up(&mut self, index: usize) {

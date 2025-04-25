@@ -81,8 +81,8 @@ pub fn insert_leaf(program_id: &Pubkey, accounts: &[AccountInfo], leaf: Vec<u8>)
     Ok(())
 }
 
-fn load_sub_tree<'a>(
-    sub_tree_acc: &AccountInfo<'a>,
+fn load_sub_tree(
+    sub_tree_acc: &AccountInfo,
     id: SubTreeId,
     program_id: &Pubkey,
 ) -> Result<SubTree, ProgramError> {
