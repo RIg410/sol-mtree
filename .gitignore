@@ -1,9 +1,6 @@
-.anchor
 .cargo
 .DS_Store
 **/.DS_Store
 **/target
 **/*.rs.bk
-node_modules
-test-ledger
-dist
+
