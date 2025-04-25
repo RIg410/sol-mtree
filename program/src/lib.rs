@@ -5,6 +5,7 @@ pub mod error;
 pub mod info;
 pub mod instruction;
 pub mod mtree;
+pub mod tree;
 pub mod processor;
 pub mod events;
 pub use solana_program;
