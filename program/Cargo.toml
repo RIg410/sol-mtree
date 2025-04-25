@@ -1,23 +1,26 @@
 [package]
-name = "solana-program-sol-mtree"
-version = "0.0.0"
+name = "solana-program-mtree"
+
 edition = "2021"
-readme = "./README.md"
-license-file = "../LICENSE"
 publish = false
 
 [package.metadata.solana]
-program-id = "5btvfbzMrGv3WB4h47NXpophMLKqGEEDwGDQgkr8PMF2"
-program-dependencies = []
 account-dependencies = []
+program-dependencies = []
+program-id = "5btvfbzMrGv3WB4h47NXpophMLKqGEEDwGDQgkr8PMF2"
+
+[features]
+default = ["encode"]
+encode = []
+no-entrypoint = []
 
 [lib]
 crate-type = ["cdylib", "lib"]
 
 [dependencies]
-borsh = "^0.10"
-shank = "^0.4.2"
-num-derive = "^0.3"
-num-traits = "^0.2"
-solana-program = "~1.18"
-thiserror = "^1.0"
+borsh.workspace = true
+num-derive.workspace = true
+num-traits.workspace = true
+solana-program.workspace = true
+thiserror.workspace = true
+hex.workspace = true

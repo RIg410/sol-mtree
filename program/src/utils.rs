@@ -1,28 +1,19 @@
 use solana_program::{
-    account_info::AccountInfo,
-    entrypoint::ProgramResult,
-    program::{invoke, invoke_signed},
-    program_error::ProgramError,
-    pubkey::Pubkey,
-    rent::Rent,
-    system_instruction, system_program,
-    sysvar::Sysvar,
+    account_info::AccountInfo, entrypoint::ProgramResult, program::invoke_signed, pubkey::Pubkey,
+    rent::Rent, system_instruction, system_program, sysvar::Sysvar,
 };
 
-use crate::error::CounterError;
-
-/// Create a new account from the given size.
-#[inline(always)]
 pub fn create_account<'a>(
     target_account: &AccountInfo<'a>,
     funding_account: &AccountInfo<'a>,
     system_program: &AccountInfo<'a>,
     size: usize,
+    extra_lamports: u64,
     owner: &Pubkey,
     signer_seeds: Option<&[&[&[u8]]]>,
 ) -> ProgramResult {
     let rent = Rent::get()?;
-    let lamports: u64 = rent.minimum_balance(size);
+    let lamports: u64 = rent.minimum_balance(size) + extra_lamports;
 
     invoke_signed(
         &system_instruction::create_account(
@@ -41,35 +32,35 @@ pub fn create_account<'a>(
     )
 }
 
-/// Resize an account using realloc, lifted from Solana Cookbook.
-#[inline(always)]
-pub fn realloc_account<'a>(
-    target_account: &AccountInfo<'a>,
-    funding_account: &AccountInfo<'a>,
-    system_program: &AccountInfo<'a>,
-    new_size: usize,
-    refund: bool,
-) -> ProgramResult {
-    let rent = Rent::get()?;
-    let old_minimum_balance = rent.minimum_balance(target_account.data_len());
-    let new_minimum_balance = rent.minimum_balance(new_size);
-    let lamports_diff = new_minimum_balance.abs_diff(old_minimum_balance);
+// /// Resize an account using realloc, lifted from Solana Cookbook.
+// #[inline(always)]
+// pub fn realloc_account<'a>(
+//     target_account: &AccountInfo<'a>,
+//     funding_account: &AccountInfo<'a>,
+//     system_program: &AccountInfo<'a>,
+//     new_size: usize,
+//     refund: bool,
+// ) -> ProgramResult {
+//     let rent = Rent::get()?;
+//     let old_minimum_balance = rent.minimum_balance(target_account.data_len());
+//     let new_minimum_balance = rent.minimum_balance(new_size);
+//     let lamports_diff = new_minimum_balance.abs_diff(old_minimum_balance);
 
-    if new_minimum_balance > old_minimum_balance {
-        invoke(
-            &system_instruction::transfer(funding_account.key, target_account.key, lamports_diff),
-            &[
-                funding_account.clone(),
-                target_account.clone(),
-                system_program.clone(),
-            ],
-        )?;
-    } else if refund {
-        transfer_lamports_from_pdas(target_account, funding_account, lamports_diff)?;
-    }
+//     if new_minimum_balance > old_minimum_balance {
+//         invoke(
+//             &system_instruction::transfer(funding_account.key, target_account.key, lamports_diff),
+//             &[
+//                 funding_account.clone(),
+//                 target_account.clone(),
+//                 system_program.clone(),
+//             ],
+//         )?;
+//     } else if refund {
+//         transfer_lamports_from_pdas(target_account, funding_account, lamports_diff)?;
+//     }
 
-    target_account.realloc(new_size, false)
-}
+//     target_account.realloc(new_size, false)
+// }
 
 /// Close an account.
 #[inline(always)]
@@ -100,22 +91,4 @@ pub fn transfer_lamports<'a>(
         &[from.clone(), to.clone()],
         signer_seeds.unwrap_or(&[]),
     )
-}
-
-pub fn transfer_lamports_from_pdas<'a>(
-    from: &AccountInfo<'a>,
-    to: &AccountInfo<'a>,
-    lamports: u64,
-) -> ProgramResult {
-    **from.lamports.borrow_mut() = from
-        .lamports()
-        .checked_sub(lamports)
-        .ok_or::<ProgramError>(CounterError::NumericalOverflow.into())?;
-
-    **to.lamports.borrow_mut() = to
-        .lamports()
-        .checked_add(lamports)
-        .ok_or::<ProgramError>(CounterError::NumericalOverflow.into())?;
-
-    Ok(())
 }

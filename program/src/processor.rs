@@ -1,97 +1,189 @@
-use borsh::BorshDeserialize;
+use crate::{
+    assertions::{assert_signer, assert_system_program},
+    error::MtreeError,
+    info::{find_info_pda, find_sub_tree_pda, Info, INFO_SEED},
+    mtree::{
+        hash_leaf,
+        path::{get_child_index, get_path_to_root},
+        sub_tree::{SubTree, SUB_TREE_LEAF_SIZE, SUB_TREE_SIZE},
+        Hash, SubTreeId,
+    },
+};
+use borsh::{BorshDeserialize as _, BorshSerialize as _};
 use solana_program::{
-    account_info::AccountInfo, entrypoint::ProgramResult, msg, pubkey::Pubkey, system_program,
+    account_info::{next_account_info, AccountInfo},
+    entrypoint::ProgramResult,
+    msg,
+    program::invoke_signed,
+    program_error::ProgramError,
+    pubkey::Pubkey,
+    rent::Rent,
+    system_instruction,
+    sysvar::Sysvar as _,
 };
 
-use crate::assertions::{
-    assert_pda, assert_program_owner, assert_same_pubkeys, assert_signer, assert_writable,
-};
-use crate::instruction::accounts::{CreateAccounts, IncrementAccounts};
-use crate::instruction::CounterInstruction;
-use crate::state::{Counter, Key};
-use crate::utils::create_account;
+pub fn insert_leaf(program_id: &Pubkey, accounts: &[AccountInfo], leaf: Vec<u8>) -> ProgramResult {
+    let accounts_iterator = &mut accounts.iter();
 
-pub fn process_instruction<'a>(
-    _program_id: &Pubkey,
-    accounts: &'a [AccountInfo<'a>],
-    instruction_data: &[u8],
+    let sender = next_account_info(accounts_iterator)?;
+    assert_signer("sender", sender)?;
+
+    let info_acc = next_account_info(accounts_iterator)?;
+    let sys = next_account_info(accounts_iterator)?;
+    assert_system_program(sys)?;
+
+    let rent = Rent::get()?;
+
+    let (mut info, info_bump) = get_or_init_info(info_acc, sender, sys, program_id, &rent)?;
+
+    if info.root_hash != Hash::default() {
+        transfer_commission(info_acc, sender, &rent)?;
+    }
+
+    let path = get_path_to_root(info.node_id);
+
+    let last_sub_tree_id = path[0];
+    let last_node_acc = next_account_info(accounts_iterator)?;
+
+    let mut sub_tree = get_or_init_sub_tree(
+        info_acc,
+        last_node_acc,
+        last_sub_tree_id,
+        sys,
+        program_id,
+        &rent,
+        info_bump,
+    )?;
+
+    if sub_tree.is_full() {
+        return Err(MtreeError::SubTreeFull.into());
+    }
+    sub_tree.insert_leaf(hash_leaf(leaf));
+    sub_tree.serialize(&mut *last_node_acc.try_borrow_mut_data()?)?;
+
+    if sub_tree.is_full() {
+        info.node_id = last_sub_tree_id + 1;
+    }
+    let mut root_hash = sub_tree.root_hash();
+    let mut child_id = last_sub_tree_id;
+    for tree_id in path.iter().skip(1) {
+        let sub_tree_acc = next_account_info(accounts_iterator)?;
+        let mut sub_tree = load_sub_tree(sub_tree_acc, *tree_id, program_id)?;
+        sub_tree.update_leaf(get_child_index(child_id), root_hash);
+        sub_tree.serialize(&mut *sub_tree_acc.try_borrow_mut_data()?)?;
+        root_hash = sub_tree.root_hash();
+        child_id = *tree_id;
+    }
+
+    info.root_hash = root_hash;
+    info.serialize(&mut *info_acc.try_borrow_mut_data()?)?;
+    msg!("Hash:{:?}", info.root_hash);
+    Ok(())
+}
+
+fn load_sub_tree<'a>(
+    sub_tree_acc: &AccountInfo<'a>,
+    id: SubTreeId,
+    program_id: &Pubkey,
+) -> Result<SubTree, ProgramError> {
+    let node_key = find_sub_tree_pda(id, program_id);
+    if *sub_tree_acc.key != node_key.0 {
+        return Err(MtreeError::InvalidNodeAccount.into());
+    }
+
+    if sub_tree_acc.data_is_empty() {
+        return Err(MtreeError::UninitializedSubTree.into());
+    }
+
+    let data = sub_tree_acc.try_borrow_data()?;
+    SubTree::try_from_slice(data.as_ref()).map_err(|_| ProgramError::InvalidAccountData)
+}
+
+fn get_or_init_sub_tree<'a>(
+    info_acc: &AccountInfo<'a>,
+    sub_tree_acc: &AccountInfo<'a>,
+    id: SubTreeId,
+    sys: &AccountInfo<'a>,
+    program_id: &Pubkey,
+    rent: &Rent,
+    info_bump: u8,
+) -> Result<SubTree, ProgramError> {
+    let node_key = find_sub_tree_pda(id, program_id);
+    if *sub_tree_acc.key != node_key.0 {
+        return Err(MtreeError::InvalidNodeAccount.into());
+    }
+
+    if !sub_tree_acc.data_is_empty() {
+        let data = sub_tree_acc.try_borrow_data()?;
+        return SubTree::try_from_slice(data.as_ref())
+            .map_err(|_| ProgramError::InvalidAccountData);
+    }
+
+    let rent = rent.minimum_balance(SUB_TREE_SIZE);
+    invoke_signed(
+        &system_instruction::create_account(
+            info_acc.key,
+            sub_tree_acc.key,
+            rent,
+            SUB_TREE_LEAF_SIZE as u64,
+            program_id,
+        ),
+        &[info_acc.clone(), sub_tree_acc.clone(), sys.clone()],
+        &[&[INFO_SEED, &[info_bump]]],
+    )?;
+
+    Ok(SubTree::default())
+}
+
+fn transfer_commission<'a>(
+    info_acc: &AccountInfo<'a>,
+    sender: &AccountInfo<'a>,
+    rent: &Rent,
 ) -> ProgramResult {
-    let instruction: CounterInstruction = CounterInstruction::try_from_slice(instruction_data)?;
-    match instruction {
-        CounterInstruction::Create => {
-            msg!("Instruction: Create");
-            create(accounts)
-        }
-        CounterInstruction::Increment { amount } => {
-            msg!("Instruction: Increment");
-            increment(accounts, amount)
-        }
-    }
+    let commission = rent.minimum_balance(SUB_TREE_LEAF_SIZE);
+    invoke_signed(
+        &system_instruction::transfer(sender.key, info_acc.key, commission),
+        &[sender.clone(), info_acc.clone()],
+        &[],
+    )
 }
 
-fn create<'a>(accounts: &'a [AccountInfo<'a>]) -> ProgramResult {
-    // Accounts.
-    let ctx = CreateAccounts::context(accounts)?;
-
-    // Guards.
-    let counter_bump = assert_pda(
-        "counter",
-        ctx.accounts.counter,
-        &crate::ID,
-        &Counter::seeds(ctx.accounts.authority.key),
-    )?;
-    assert_signer("authority", ctx.accounts.authority)?;
-    assert_signer("payer", ctx.accounts.payer)?;
-    assert_writable("payer", ctx.accounts.payer)?;
-    assert_same_pubkeys(
-        "system_program",
-        ctx.accounts.system_program,
-        &system_program::id(),
-    )?;
-
-    // Do nothing if the domain already exists.
-    if !ctx.accounts.counter.data_is_empty() {
-        return Ok(());
+fn get_or_init_info<'a>(
+    info: &AccountInfo<'a>,
+    sender: &AccountInfo<'a>,
+    sys: &AccountInfo<'a>,
+    program_id: &Pubkey,
+    rent: &Rent,
+) -> Result<(Info, u8), ProgramError> {
+    let info_key = find_info_pda(program_id);
+    if *info.key != info_key.0 {
+        return Err(MtreeError::InvalidInfoAccount.into());
     }
 
-    // Create Counter PDA.
-    let counter = Counter {
-        key: Key::Counter,
-        authority: *ctx.accounts.authority.key,
-        value: 0,
-    };
-    let mut seeds = Counter::seeds(ctx.accounts.authority.key);
-    let bump = [counter_bump];
-    seeds.push(&bump);
-    create_account(
-        ctx.accounts.counter,
-        ctx.accounts.payer,
-        ctx.accounts.system_program,
-        Counter::LEN,
-        &crate::ID,
-        Some(&[&seeds]),
+    if !info.data_is_empty() {
+        let data = info.try_borrow_data()?;
+        return Ok((
+            Info::try_from_slice(data.as_ref()).map_err(|_| ProgramError::InvalidAccountData)?,
+            info_key.1,
+        ));
+    }
+
+    let first_node_lamports = rent.minimum_balance(SUB_TREE_SIZE);
+
+    let info_rent = rent.minimum_balance(Info::LEN);
+    let total_lamports = first_node_lamports + info_rent;
+
+    invoke_signed(
+        &system_instruction::create_account(
+            sender.key,
+            info.key,
+            total_lamports,
+            Info::LEN as u64,
+            program_id,
+        ),
+        &[sender.clone(), info.clone(), sys.clone()],
+        &[&[INFO_SEED, &[info_key.1]]],
     )?;
 
-    counter.save(ctx.accounts.counter)
-}
-
-fn increment<'a>(accounts: &'a [AccountInfo<'a>], amount: Option<u32>) -> ProgramResult {
-    // Accounts.
-    let ctx = IncrementAccounts::context(accounts)?;
-
-    // Guards.
-    assert_signer("authority", ctx.accounts.authority)?;
-    assert_pda(
-        "counter",
-        ctx.accounts.counter,
-        &crate::ID,
-        &Counter::seeds(ctx.accounts.authority.key),
-    )?;
-    assert_program_owner("counter", ctx.accounts.counter, &crate::ID)?;
-    let mut counter = Counter::load(ctx.accounts.counter)?;
-    assert_same_pubkeys("authority", ctx.accounts.authority, &counter.authority)?;
-
-    // Increment Counter PDA.
-    counter.value += amount.unwrap_or(1);
-    counter.save(ctx.accounts.counter)
+    Ok((Info::default(), info_key.1))
 }

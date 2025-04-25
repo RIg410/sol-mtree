@@ -1,12 +1,24 @@
 [workspace]
+members = ["client", "program"]
 resolver = "2"
-members = ["clients/rust", "program"]
 
 [workspace.metadata.cli]
 solana = "1.18.14"
 
-# Specify Rust toolchains for rustfmt, clippy, and build.
-# Any unprovided toolchains default to stable.
 [workspace.metadata.toolchains]
 format = "1.86.0"
 lint = "1.86.0"
+
+[workspace.dependencies]
+solana-program-mtree = {path = "program"}
+
+borsh = "^0.10"
+num-derive = "^0.3"
+num-traits = "^0.2"
+serde = "^1.0"
+solana-program = "~1.18"
+solana-program-test = "~1.18"
+solana-sdk = "~1.18"
+thiserror = "^1.0"
+tokio = "^1.0"
+hex = "^0.4"
