@@ -39,7 +39,7 @@ pub fn insert_leaf(program_id: &Pubkey, accounts: &[AccountInfo], leaf: Vec<u8>)
         transfer_commission(info_acc, sender, &rent)?;
     }
 
-    let path = get_path_to_root(info.node_id);
+    let path = get_path_to_root(info.tree_id);
 
     let last_sub_tree_id = path[0];
     let last_node_acc = next_account_info(accounts_iterator)?;
@@ -62,7 +62,7 @@ pub fn insert_leaf(program_id: &Pubkey, accounts: &[AccountInfo], leaf: Vec<u8>)
     leaf_sub_tree.insert_leaf(hash_leaf(leaf));
 
     if leaf_sub_tree.is_full() {
-        info.node_id = last_sub_tree_id + 1;
+        info.tree_id = last_sub_tree_id + 1;
     }
 
     let mut root_hash = leaf_sub_tree.root_hash();

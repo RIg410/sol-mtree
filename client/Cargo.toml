@@ -1,11 +1,15 @@
 [package]
-edition = "2021"
 name = "client"
+
+edition = "2021"
 version = "0.1.0"
 
 [dependencies]
+borsh.workspace = true
+eyre.workspace = true
+solana-client.workspace = true
 solana-program-mtree = {workspace = true, features = ["no-entrypoint"]}
-
-[dev-dependencies]
+solana-program.workspace = true
 solana-sdk.workspace = true
-tokio = {workspace = true, features = ["full"]}
+hex.workspace = true
+solana-transaction-status.workspace = true

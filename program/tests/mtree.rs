@@ -31,7 +31,7 @@ pub async fn test_init() {
     let info = get_info(&mut context).await;
     assert!(info.is_some());
     let info = info.unwrap();
-    assert_eq!(info.node_id, 0);
+    assert_eq!(info.tree_id, 0);
 
     let mut tree = SubTree::new();
     tree.insert_leaf(hash_leaf(test_data));
@@ -56,7 +56,7 @@ pub async fn test_full_root_sub_tree() {
     let info = get_info(&mut context).await;
     assert!(info.is_some());
     let info = info.unwrap();
-    assert_eq!(info.node_id, 1);
+    assert_eq!(info.tree_id, 1);
     assert_eq!(info.root_hash, expected_tree.root_hash());
 }
 

@@ -15,7 +15,7 @@ pub fn find_info_pda(program_id: &Pubkey) -> (Pubkey, u8) {
 
 #[derive(Clone, BorshSerialize, BorshDeserialize, Debug, Default)]
 pub struct MTreeInfo {
-    pub node_id: SubTreeId,
+    pub tree_id: SubTreeId,
     pub root_hash: Hash,
 }
 
