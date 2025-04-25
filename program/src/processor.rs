@@ -1,7 +1,7 @@
 use crate::{
     assertions::{assert_signer, assert_system_program},
     error::MtreeError,
-    info::{find_info_pda, find_sub_tree_pda, Info, INFO_SEED},
+    info::{find_info_pda, find_sub_tree_pda, MTreeInfo, INFO_SEED},
     mtree::{
         hash_leaf,
         path::{get_child_index, get_path_to_root},
@@ -154,7 +154,7 @@ fn get_or_init_info<'a>(
     sys: &AccountInfo<'a>,
     program_id: &Pubkey,
     rent: &Rent,
-) -> Result<(Info, u8), ProgramError> {
+) -> Result<(MTreeInfo, u8), ProgramError> {
     let info_key = find_info_pda(program_id);
     if *info.key != info_key.0 {
         return Err(MtreeError::InvalidInfoAccount.into());
@@ -163,14 +163,15 @@ fn get_or_init_info<'a>(
     if !info.data_is_empty() {
         let data = info.try_borrow_data()?;
         return Ok((
-            Info::try_from_slice(data.as_ref()).map_err(|_| ProgramError::InvalidAccountData)?,
+            MTreeInfo::try_from_slice(data.as_ref())
+                .map_err(|_| ProgramError::InvalidAccountData)?,
             info_key.1,
         ));
     }
 
     let first_node_lamports = rent.minimum_balance(SUB_TREE_SIZE);
 
-    let info_rent = rent.minimum_balance(Info::LEN);
+    let info_rent = rent.minimum_balance(MTreeInfo::LEN);
     let total_lamports = first_node_lamports + info_rent;
 
     invoke_signed(
@@ -178,12 +179,12 @@ fn get_or_init_info<'a>(
             sender.key,
             info.key,
             total_lamports,
-            Info::LEN as u64,
+            MTreeInfo::LEN as u64,
             program_id,
         ),
         &[sender.clone(), info.clone(), sys.clone()],
         &[&[INFO_SEED, &[info_key.1]]],
     )?;
 
-    Ok((Info::default(), info_key.1))
+    Ok((MTreeInfo::default(), info_key.1))
 }
