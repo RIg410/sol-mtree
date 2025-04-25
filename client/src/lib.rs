@@ -1,7 +1,6 @@
 use borsh::BorshDeserialize as _;
 use eyre::Error;
 use solana_client::rpc_client::RpcClient;
-use solana_program::log;
 use solana_program::pubkey::Pubkey;
 use solana_program_mtree::events::MTreeEvent;
 use solana_program_mtree::info::{find_info_pda, MTreeInfo};
@@ -67,14 +66,12 @@ impl MTreeClient {
 
         let log = logs
             .iter()
+            .filter_map(|log| log.strip_prefix("Program log: "))
             .filter_map(MTreeEvent::decode)
             .next()
             .ok_or_else(|| eyre::eyre!("No MTreeEvent"))?;
 
-        if let MTreeEvent::NewRootHash(hash) = log {
-            Ok(hash)
-        } else {
-            Err(eyre::eyre!("Invalid event"))
-        }
+        let MTreeEvent::NewRootHash(hash) = log;
+        Ok(hash)
     }
 }

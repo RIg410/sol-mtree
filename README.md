@@ -36,5 +36,5 @@ solana program deploy ./target/sbf-solana-solana/release/solana_program_mtree.so
   
 Replace the program id with the program id you copied and run program.
 ```sh
-cargo run --bin client -- insert-leaf  -p 8JakjgFi7PuFyMcHscqsx3o6rzsrHWUJ5ckTknuA1RW9 "hello world"
+cargo run --bin client -- insert-leaf  -p ApB1EumsEaq7GsAFXuZKxUhyDwSzT9NfYqwpSfDg8zUc "hello world"
 ```

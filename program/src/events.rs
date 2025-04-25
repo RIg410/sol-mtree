@@ -18,8 +18,7 @@ impl MTreeEvent {
     #[cfg(feature = "decode-event")]
     pub fn decode<S: AsRef<str>>(log: S) -> Option<Self> {
         let log = log.as_ref();
-        if log.starts_with("EVENT:") {
-            let data = &log[6..];
+        if let Some(data) = log.strip_prefix("EVENT:") {
             let bytes = hex::decode(data).ok()?;
             let event = MTreeEvent::try_from_slice(&bytes).ok()?;
             Some(event)

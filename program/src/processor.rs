@@ -14,7 +14,6 @@ use borsh::{BorshDeserialize as _, BorshSerialize as _};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
-    msg,
     program::invoke_signed,
     program_error::ProgramError,
     pubkey::Pubkey,
