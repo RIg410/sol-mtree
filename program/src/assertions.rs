@@ -15,7 +15,7 @@ pub fn assert_signer(account_name: &str, account: &AccountInfo) -> ProgramResult
 }
 
 pub fn assert_system_program(account: &AccountInfo) -> ProgramResult {
-    if account.owner != &solana_program::system_program::ID {
+    if account.key != &solana_program::system_program::ID {
         msg!(
             "Account \"system_program\" [{}] must be the system program",
             account.key,

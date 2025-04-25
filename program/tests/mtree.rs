@@ -1,8 +1,11 @@
-use std::ops::Sub;
-
 use borsh::BorshDeserialize as _;
-use solana_program_mtree::{info::{find_info_pda, find_sub_tree_pda, MTreeInfo}, mtree::{sub_tree::SubTree, SubTreeId}};
+use solana_program_mtree::{
+    info::{find_info_pda, find_sub_tree_pda, MTreeInfo},
+    instruction::encode::make_insert_leaf_instruction,
+    mtree::{hash_leaf, sub_tree::SubTree, SubTreeId},
+};
 use solana_program_test::{ProgramTest, ProgramTestContext};
+use solana_sdk::{signer::Signer, transaction::Transaction};
 
 #[tokio::test]
 pub async fn test_init() {
@@ -13,10 +16,33 @@ pub async fn test_init() {
     let info = get_info(&mut context).await;
     assert!(info.is_none());
     let root_sub_tree = get_sub_tree(&mut context, 0).await;
+    assert!(root_sub_tree.is_none());
 
+    let test_data = "test_data".as_bytes().to_vec();
 
+    insert_leaf(&mut context, test_data.clone(), 0).await;
 
+    let info = get_info(&mut context).await;
+    assert!(info.is_some());
+    let info = info.unwrap();
+    assert_eq!(info.node_id, 0);
 
+    let mut tree = SubTree::new();
+    tree.insert_leaf(hash_leaf(test_data));
+    assert_eq!(tree.root_hash(), info.root_hash);
+}
+
+async fn insert_leaf(context: &mut ProgramTestContext, leaf: Vec<u8>, id: SubTreeId) {
+    let insert_instruction =
+        make_insert_leaf_instruction(solana_program_mtree::ID, context.payer.pubkey(), leaf, id)
+            .unwrap();
+    let tx = Transaction::new_signed_with_payer(
+        &[insert_instruction],
+        Some(&context.payer.pubkey()),
+        &[&context.payer],
+        context.last_blockhash,
+    );
+    context.banks_client.process_transaction(tx).await.unwrap();
 }
 
 async fn get_info(context: &mut ProgramTestContext) -> Option<MTreeInfo> {

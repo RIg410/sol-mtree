@@ -833,7 +833,6 @@ name = "client"
 version = "0.1.0"
 dependencies = [
  "solana-program-mtree",
- "solana-program-test",
  "solana-sdk",
  "tokio",
 ]
@@ -4142,6 +4141,7 @@ dependencies = [
  "hex",
  "solana-program",
  "solana-program-test",
+ "solana-sdk",
  "thiserror",
  "tokio",
 ]

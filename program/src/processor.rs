@@ -33,8 +33,7 @@ pub fn insert_leaf(program_id: &Pubkey, accounts: &[AccountInfo], leaf: Vec<u8>)
     assert_system_program(sys)?;
 
     let rent = Rent::get()?;
-
-    let (mut info, info_bump) = get_or_init_info(info_acc, sender, sys, program_id, &rent)?;
+    let (mut info, _) = get_or_init_info(info_acc, sender, sys, program_id, &rent)?;
 
     if info.root_hash != Hash::default() {
         transfer_commission(info_acc, sender, &rent)?;
@@ -46,13 +45,13 @@ pub fn insert_leaf(program_id: &Pubkey, accounts: &[AccountInfo], leaf: Vec<u8>)
     let last_node_acc = next_account_info(accounts_iterator)?;
 
     let mut sub_tree = get_or_init_sub_tree(
+        sender,
         info_acc,
         last_node_acc,
         last_sub_tree_id,
         sys,
         program_id,
         &rent,
-        info_bump,
     )?;
 
     if sub_tree.is_full() {
@@ -77,7 +76,7 @@ pub fn insert_leaf(program_id: &Pubkey, accounts: &[AccountInfo], leaf: Vec<u8>)
 
     info.root_hash = root_hash;
     info.serialize(&mut *info_acc.try_borrow_mut_data()?)?;
-    msg!("Hash:{:?}", info.root_hash);
+    msg!("Hash:{:?}", hex::encode(info.root_hash));
     Ok(())
 }
 
@@ -100,13 +99,13 @@ fn load_sub_tree(
 }
 
 fn get_or_init_sub_tree<'a>(
+    sender_acc: &AccountInfo<'a>,
     info_acc: &AccountInfo<'a>,
     sub_tree_acc: &AccountInfo<'a>,
     id: SubTreeId,
     sys: &AccountInfo<'a>,
     program_id: &Pubkey,
     rent: &Rent,
-    info_bump: u8,
 ) -> Result<SubTree, ProgramError> {
     let node_key = find_sub_tree_pda(id, program_id);
     if *sub_tree_acc.key != node_key.0 {
@@ -122,15 +121,19 @@ fn get_or_init_sub_tree<'a>(
     let rent = rent.minimum_balance(SUB_TREE_SIZE);
     invoke_signed(
         &system_instruction::create_account(
-            info_acc.key,
+            sender_acc.key,
             sub_tree_acc.key,
-            rent,
-            SUB_TREE_LEAF_SIZE as u64,
+            1,
+            SUB_TREE_SIZE as u64,
             program_id,
         ),
-        &[info_acc.clone(), sub_tree_acc.clone(), sys.clone()],
-        &[&[INFO_SEED, &[info_bump]]],
+        &[sender_acc.clone(), sub_tree_acc.clone(), sys.clone()],
+        &[&[&id.to_be_bytes()[..], &[node_key.1]]],
     )?;
+    msg!("rent:{}", rent);
+    msg!("lamports:{}", **info_acc.try_borrow_lamports()?);
+    **info_acc.try_borrow_mut_lamports()? -= rent;
+    **sub_tree_acc.try_borrow_mut_lamports()? += rent;
 
     Ok(SubTree::default())
 }
@@ -169,16 +172,13 @@ fn get_or_init_info<'a>(
         ));
     }
 
-    let first_node_lamports = rent.minimum_balance(SUB_TREE_SIZE);
-
-    let info_rent = rent.minimum_balance(MTreeInfo::LEN);
-    let total_lamports = first_node_lamports + info_rent;
+    let lamports = rent.minimum_balance(MTreeInfo::LEN) + rent.minimum_balance(SUB_TREE_SIZE);
 
     invoke_signed(
         &system_instruction::create_account(
             sender.key,
             info.key,
-            total_lamports,
+            lamports,
             MTreeInfo::LEN as u64,
             program_id,
         ),
