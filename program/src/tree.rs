@@ -12,15 +12,17 @@ pub type Hash = [u8; 32];
 pub const MAX_LEAFS: usize = 256;
 const _: () = assert!(MAX_LEAFS % 2 == 0, "TREE_LEAFS_COUNT must be even");
 
+pub const PDA_SEED: &[u8] = b"mtree";
+
 pub fn find_mtree_pda(program_id: &Pubkey) -> (Pubkey, u8) {
-    Pubkey::find_program_address(&[b"mtree"], program_id)
+    Pubkey::find_program_address(&[PDA_SEED], program_id)
 }
 
-const ROOT_OFFSET: usize = 0;
+pub const ROOT_OFFSET: usize = 0;
 const LENGTH_OFFSET: usize = 32;
 const LENGTH_SIZE: usize = size_of::<u32>();
 const FIRST_LEAF_OFFSET: usize = 36;
-const LEAF_SIZE: usize = size_of::<Hash>();
+pub const LEAF_SIZE: usize = size_of::<Hash>();
 
 /// layout of the MTree account
 /// |0..32: root_hash|32..36: length|36..2048 * 32: leafs|
@@ -36,11 +38,6 @@ impl<'a, const LEAFS: usize> MTree<'a, LEAFS> {
     }
 
     pub fn map_acc(acc: &AccountInfo<'a>) -> Result<Self, ProgramError> {
-        let key = find_mtree_pda(&acc.key).0;
-        if key != *acc.key {
-            return Err(ProgramError::InvalidArgument);
-        }
-
         Ok(MTree::new(acc.data.clone()))
     }
 
@@ -161,7 +158,11 @@ impl<const LEAFS: usize> Debug for MTree<'_, LEAFS> {
     }
 }
 
-fn join(left: &[u8], right: &[u8]) -> Hash {
+pub fn hash_leaf(leaf: Vec<u8>) -> Hash {
+    hashv(&[leaf.as_slice()]).to_bytes()
+}
+
+pub fn join(left: &[u8], right: &[u8]) -> Hash {
     hashv(&[left, right]).to_bytes()
 }
 

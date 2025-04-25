@@ -1,7 +1,7 @@
-use crate::mtree::Hash;
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::entrypoint::ProgramResult;
 use solana_program::msg;
+use crate::tree::Hash;
 
 #[derive(BorshDeserialize, BorshSerialize, Debug)]
 pub enum MTreeEvent {

@@ -1,11 +1,9 @@
-use borsh::BorshDeserialize as _;
 use eyre::Error;
 use solana_client::rpc_client::RpcClient;
 use solana_program::pubkey::Pubkey;
 use solana_program_mtree::events::MTreeEvent;
-use solana_program_mtree::info::{find_info_pda, MTreeInfo};
 use solana_program_mtree::instruction::encode::make_insert_leaf_instruction;
-use solana_program_mtree::mtree::Hash;
+use solana_program_mtree::tree::{find_mtree_pda, LEAF_SIZE, ROOT_OFFSET, Hash};
 use solana_sdk::signature::Signature;
 use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
 use solana_transaction_status::UiTransactionEncoding;
@@ -23,23 +21,20 @@ impl MTreeClient {
         }
     }
 
-    fn get_info(&self) -> Result<MTreeInfo, Error> {
-        let (info_pda, _) = find_info_pda(&self.program_id);
-        let account = self.client.get_account(&info_pda)?;
-        let mtree_info = MTreeInfo::try_from_slice(&account.data)?;
-        Ok(mtree_info)
-    }
-
     pub fn get_root_hash(&self) -> Result<Hash, Error> {
-        let mtree_info = self.get_info()?;
-        Ok(mtree_info.root_hash)
+        let (tree_pda, _) = find_mtree_pda(&self.program_id);
+        let account = self.client.get_account(&tree_pda)?;
+
+        let mut root = Hash::default();
+        if account.data.len() > 0 {
+            root.copy_from_slice(&account.data[ROOT_OFFSET..ROOT_OFFSET + LEAF_SIZE]);
+        }
+
+        Ok(root)
     }
 
     pub fn insert_leaf(&self, payer: &Keypair, data: Vec<u8>) -> Result<Signature, Error> {
-        let tree_id = self.get_info().map(|i| i.tree_id).unwrap_or_default();
-
-        let insert_ix =
-            make_insert_leaf_instruction(self.program_id, payer.pubkey(), data, tree_id)?;
+        let insert_ix = make_insert_leaf_instruction(self.program_id, payer.pubkey(), data)?;
 
         let recent_blockhash = self.client.get_latest_blockhash()?;
         let transaction = Transaction::new_signed_with_payer(

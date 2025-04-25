@@ -7,32 +7,14 @@ use thiserror::Error;
 
 #[derive(Error, Clone, Debug, Eq, PartialEq)]
 pub enum MtreeError {
-    #[error("Invalid instruction")]
-    InvalidInstruction,
-
     #[error("Expected signer account")]
     ExpectedSignerAccount,
-
-    #[error("Invalid info account")]
-    InvalidInfoAccount,
-
-    #[error("Expected writable account")]
-    ExpectedWritableAccount,
 
     #[error("Invalid system program")]
     InvalidSystemProgram,
 
-    #[error("Invalid node account")]
-    InvalidNodeAccount,
-
-    #[error("Invalid sub tree account")]
-    SubTreeFull,
-
-    #[error("Uninitialized sub tree account")]
-    UninitializedSubTree,
-
-    #[error("Failed to send event")]
-    FailedToSendEvent,
+    #[error("Invalid instruction")]
+    InvalidInstruction,
 }
 
 impl PrintProgramError for MtreeError {
