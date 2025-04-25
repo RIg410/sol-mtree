@@ -1,6 +1,7 @@
 use crate::{
     assertions::{assert_signer, assert_system_program},
     error::MtreeError,
+    events::MTreeEvent,
     info::{find_info_pda, find_sub_tree_pda, MTreeInfo, INFO_SEED},
     mtree::{
         hash_leaf,
@@ -91,7 +92,10 @@ pub fn insert_leaf(program_id: &Pubkey, accounts: &[AccountInfo], leaf: Vec<u8>)
 
     info.root_hash = root_hash;
     info.serialize(&mut *info_acc.try_borrow_mut_data()?)?;
-    msg!("Hash:{:?}", hex::encode(info.root_hash));
+
+    MTreeEvent::NewRootHash(info.root_hash)
+        .send()
+        .map_err(|_| MtreeError::FailedToSendEvent)?;
     Ok(())
 }
 

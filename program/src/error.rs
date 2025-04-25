@@ -30,6 +30,9 @@ pub enum MtreeError {
 
     #[error("Uninitialized sub tree account")]
     UninitializedSubTree,
+
+    #[error("Failed to send event")]
+    FailedToSendEvent,
 }
 
 impl PrintProgramError for MtreeError {
