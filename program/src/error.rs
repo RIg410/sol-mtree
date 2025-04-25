@@ -1,4 +1,3 @@
-use num_derive::FromPrimitive;
 use solana_program::{
     decode_error::DecodeError,
     msg,
@@ -6,7 +5,7 @@ use solana_program::{
 };
 use thiserror::Error;
 
-#[derive(Error, Clone, Debug, Eq, PartialEq, FromPrimitive)]
+#[derive(Error, Clone, Debug, Eq, PartialEq)]
 pub enum MtreeError {
     #[error("Invalid instruction")]
     InvalidInstruction,
