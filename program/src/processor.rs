@@ -44,7 +44,7 @@ pub fn insert_leaf(program_id: &Pubkey, accounts: &[AccountInfo], leaf: Vec<u8>)
     let last_sub_tree_id = path[0];
     let last_node_acc = next_account_info(accounts_iterator)?;
 
-    let mut sub_tree = get_or_init_sub_tree(
+    let mut leaf_sub_tree = get_or_init_sub_tree(
         sender,
         info_acc,
         last_node_acc,
@@ -54,25 +54,40 @@ pub fn insert_leaf(program_id: &Pubkey, accounts: &[AccountInfo], leaf: Vec<u8>)
         &rent,
     )?;
 
-    if sub_tree.is_full() {
+    let mut is_new_sub_tree = leaf_sub_tree.is_empty();
+
+    if leaf_sub_tree.is_full() {
         return Err(MtreeError::SubTreeFull.into());
     }
-    sub_tree.insert_leaf(hash_leaf(leaf));
-    sub_tree.serialize(&mut *last_node_acc.try_borrow_mut_data()?)?;
+    leaf_sub_tree.insert_leaf(hash_leaf(leaf));
 
-    if sub_tree.is_full() {
+    if leaf_sub_tree.is_full() {
         info.node_id = last_sub_tree_id + 1;
     }
-    let mut root_hash = sub_tree.root_hash();
+
+    let mut root_hash = leaf_sub_tree.root_hash();
     let mut child_id = last_sub_tree_id;
+
     for tree_id in path.iter().skip(1) {
         let sub_tree_acc = next_account_info(accounts_iterator)?;
         let mut sub_tree = load_sub_tree(sub_tree_acc, *tree_id, program_id)?;
-        sub_tree.update_leaf(get_child_index(child_id), root_hash);
+        let child_index = get_child_index(child_id);
+
+        if is_new_sub_tree {
+            is_new_sub_tree = false;
+            if let Some(leaf) = sub_tree.get_leaf(child_index) {
+                leaf_sub_tree.insert_leaf(leaf);
+                root_hash = leaf_sub_tree.root_hash();
+            }
+        }
+
+        sub_tree.update_leaf(child_index, root_hash);
         sub_tree.serialize(&mut *sub_tree_acc.try_borrow_mut_data()?)?;
         root_hash = sub_tree.root_hash();
         child_id = *tree_id;
     }
+
+    leaf_sub_tree.serialize(&mut *last_node_acc.try_borrow_mut_data()?)?;
 
     info.root_hash = root_hash;
     info.serialize(&mut *info_acc.try_borrow_mut_data()?)?;
@@ -130,8 +145,6 @@ fn get_or_init_sub_tree<'a>(
         &[sender_acc.clone(), sub_tree_acc.clone(), sys.clone()],
         &[&[&id.to_be_bytes()[..], &[node_key.1]]],
     )?;
-    msg!("rent:{}", rent);
-    msg!("lamports:{}", **info_acc.try_borrow_lamports()?);
     **info_acc.try_borrow_mut_lamports()? -= rent;
     **sub_tree_acc.try_borrow_mut_lamports()? += rent;
 

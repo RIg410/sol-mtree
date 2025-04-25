@@ -56,6 +56,10 @@ impl SubTree {
         false
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.next_index == SUB_TREE_LEAFS as u32 - 1
+    }
+
     pub fn insert_leaf(&mut self, leaf: Hash) -> bool {
         if self.is_full() {
             return false;
@@ -67,6 +71,15 @@ impl SubTree {
 
         self.update_up(index);
         true
+    }
+
+    pub fn get_leaf(&self, index: usize) -> Option<Hash> {
+        let index = index + SUB_TREE_LEAFS - 1;
+        if (SUB_TREE_LEAFS - 1..ELEMENTS_IN_SUB_TREE).contains(&index) {
+            Some(self.nodes[index])
+        } else {
+            None
+        }
     }
 
     fn update_up(&mut self, index: usize) {
@@ -111,6 +124,7 @@ mod tests {
     #[test]
     fn test_sub_tree_new() {
         let tree: SubTree = SubTree::new();
+        assert!(tree.is_empty());
 
         assert_eq!(tree.next_index, SUB_TREE_LEAFS as u32 - 1);
 
@@ -147,6 +161,7 @@ mod tests {
             expected_tree.recompute();
             assert_eq!(tree.nodes, expected_tree.nodes);
         }
+        assert!(!tree.is_empty());
         assert!(tree.is_full());
     }
 
