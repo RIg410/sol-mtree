@@ -3,7 +3,7 @@ use solana_client::rpc_client::RpcClient;
 use solana_program::pubkey::Pubkey;
 use solana_program_mtree::events::MTreeEvent;
 use solana_program_mtree::instruction::encode::make_insert_leaf_instruction;
-use solana_program_mtree::tree::{find_mtree_pda, LEAF_SIZE, ROOT_OFFSET, Hash};
+use solana_program_mtree::tree::{find_mtree_pda, Hash, LEAF_SIZE, ROOT_OFFSET};
 use solana_sdk::signature::Signature;
 use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
 use solana_transaction_status::UiTransactionEncoding;
@@ -26,7 +26,7 @@ impl MTreeClient {
         let account = self.client.get_account(&tree_pda)?;
 
         let mut root = Hash::default();
-        if account.data.len() > 0 {
+        if !account.data.is_empty() {
             root.copy_from_slice(&account.data[ROOT_OFFSET..ROOT_OFFSET + LEAF_SIZE]);
         }
 

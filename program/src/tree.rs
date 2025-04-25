@@ -55,6 +55,10 @@ impl<'a, const LEAFS: usize> MTree<'a, LEAFS> {
         u32::from_be_bytes(count) as usize
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     fn set_len(&self, len: u32) {
         let mut data = self.data.borrow_mut();
         let count_bytes = len.to_be_bytes();
@@ -145,13 +149,13 @@ impl<const LEAFS: usize> Debug for MTree<'_, LEAFS> {
         let len = self.len();
         let mut leafs = Vec::new();
         for i in 0..len {
-            if let Some(leaf) = self.get_leaf(i).ok() {
-                leafs.push(hex::encode(&leaf));
+            if let Ok(leaf) = self.get_leaf(i) {
+                leafs.push(hex::encode(leaf));
             }
         }
 
         f.debug_struct("MTree")
-            .field("root_hash", &hex::encode(&self.root_hash()))
+            .field("root_hash", &hex::encode(self.root_hash()))
             .field("len", &self.len())
             .field("fields", &leafs)
             .finish()
@@ -183,8 +187,8 @@ mod test_mtree {
         let mut mtree = MTree::<10>::new(data);
 
         assert_eq!(mtree.len(), 0);
-        assert_eq!(mtree.is_full(), false);
-        assert_eq!(mtree.is_init(), true);
+        assert!(!mtree.is_full());
+        assert!(mtree.is_init());
 
         mtree.insert_leaf(idx(0)).unwrap();
         assert_eq!(mtree.len(), 1);
@@ -219,7 +223,7 @@ mod test_mtree {
         assert_eq!(mtree.len(), 9);
         mtree.insert_leaf(idx(9)).unwrap();
         assert_eq!(mtree.len(), 10);
-        assert_eq!(mtree.is_full(), true);
+        assert!(mtree.is_full());
 
         let left = join(
             &join(&idx(0), &idx(1)),
